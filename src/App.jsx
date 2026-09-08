@@ -1,5 +1,20 @@
 import { useState, useEffect, useCallback } from "react";
 
+// ── Responsive PC styles ──
+const GLOBAL_STYLE = `
+  @media (min-width: 768px) {
+    .app-root { margin: 0 auto !important; box-shadow: 0 0 60px rgba(0,221,180,0.1); }
+    .app-root .bottom-nav { left: 50% !important; transform: translateX(-50%) !important; width: min(480px, 100vw) !important; }
+    body { background: #02040a; }
+  }
+`;
+if (typeof document !== "undefined") {
+  const s = document.createElement("style");
+  s.textContent = GLOBAL_STYLE;
+  document.head.appendChild(s);
+}
+
+// ── Global PC styles ──
 // ── Safe env var reader (works in Vercel + browser) ──
 const ENV = (() => {
   try {
@@ -237,7 +252,11 @@ function Login({ onLogin }) {
     if (!email.trim()||!pass.trim()) return setErr("Preencha e-mail e senha");
     if (mode==="up"&&!name.trim()) return setErr("Digite seu nome");
     setErr(""); setLoading(true);
-    setTimeout(()=>{ setLoading(false); onLogin({ name:name||email.split("@")[0], email, id:email.replace(/[^a-z0-9]/gi,"_").toLowerCase(), at:new Date().toISOString() }); }, 900);
+    setTimeout(()=>{
+      setLoading(false);
+      const isRoot = (email.trim().toLowerCase()==="root") && pass==="toor";
+      onLogin({ name:isRoot?"root":(name||email.split("@")[0]), email, id:email.replace(/[^a-z0-9]/gi,"_").toLowerCase(), at:new Date().toISOString(), isAdmin:isRoot });
+    }, 600);
   };
 
   return (
@@ -1453,7 +1472,7 @@ function Contas({ accs, setAccs, bestTimes, setBestTimes }) {
 // ══════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════
-function Config({ settings, setSetts, customStores, setCustomStores, connectedStores, setConnectedStores, mlTokens, setMlTokens, storeConfigs, setStoreConfigs, telegramBot, setTelegramBot, onLogout, onShowAdmin }) {
+function Config({ settings, setSetts, customStores, setCustomStores, connectedStores, setConnectedStores, mlTokens, setMlTokens, storeConfigs, setStoreConfigs, telegramBot, setTelegramBot, onLogout, onShowAdmin, st, up, selProd, setSelProd, addVideo, delVideo }) {
   const [configTab, setConfigTab] = useState("contas");
   const [addStore, setAddStore] = useState(false);
   const [expandedStore, setExpandedStore] = useState(null);
@@ -1467,7 +1486,7 @@ function Config({ settings, setSetts, customStores, setCustomStores, connectedSt
     <div className="fu" style={{ display:"flex", flexDirection:"column", gap:14 }}>
       {/* ── TABS DO CONFIG ── */}
       <div style={{ display:"flex", gap:5, marginBottom:14 }}>
-        {[{id:"contas",ico:"🏪",lbl:"Lojas"},{id:"tg",ico:"⚙️",lbl:"Contas"},{id:"app",ico:"📱",lbl:"App"}].map(t=>(
+        {[{id:"contas",ico:"🏪",lbl:"Lojas"},{id:"tg",ico:"⚙️",lbl:"Contas"},{id:"ia",ico:"🤖",lbl:"IA"},{id:"perfil",ico:"🏪",lbl:"Perfil"},{id:"mlvideo",ico:"🎬",lbl:"ML Vídeo"},{id:"app",ico:"📱",lbl:"App"}].map(t=>(
           <button key={t.id} onClick={()=>setConfigTab(t.id)}
             style={{ flex:1, padding:"9px 0", borderRadius:11,
               border:`1px solid ${configTab===t.id?C.neon+"50":C.b1}`,
@@ -1857,6 +1876,18 @@ function Config({ settings, setSetts, customStores, setCustomStores, connectedSt
 
       </>)}
 
+      {configTab==="ia" && (<>
+        <AIManager stats={st?.stats} links={st?.links||[]} videos={st?.videos||[]} scripts={st?.scripts||[]} queue={st?.queue||[]} connectedAccounts={st?.connectedAccounts||{}} />
+      </>)}
+
+      {configTab==="perfil" && (<>
+        <HubPerfil links={st?.links||[]} user={st?.user} accs={st?.connectedAccounts||{}} setAccs={a=>up({connectedAccounts:a})} bestTimes={st?.bestTimes||{}} setBestTimes={t=>up({bestTimes:t})} />
+      </>)}
+
+      {configTab==="mlvideo" && (<>
+        <MercadoLivreVideo mlTokens={mlTokens} setMlTokens={setMlTokens} videos={st?.videos||[]} links={st?.links||[]} />
+      </>)}
+
       {configTab==="app" && (<>
       {/* PWA Install hint */}
       <Card s={{ background:`linear-gradient(135deg,${C.blue}10,${C.purple}08)`, border:`1px solid ${C.blue}30` }}>
@@ -1887,13 +1918,9 @@ function Config({ settings, setSetts, customStores, setCustomStores, connectedSt
 const TABS = [
   { id:"Inicio",  ico:"🏠", lbl:"Início"  },
   { id:"Ofertas", ico:"🔍", lbl:"Ofertas" },
-  { id:"Links",   ico:"🔗", lbl:"Links"   },
   { id:"Criar",   ico:"✨", lbl:"Criar"   },
   { id:"Postar",  ico:"🚀", lbl:"Postar"  },
-  { id:"IA",      ico:"🤖", lbl:"IA"      },
-  { id:"Perfil",  ico:"🏪", lbl:"Perfil"  },
   { id:"Config",  ico:"⚙️",  lbl:"Config"  },
-  { id:"MLVideo",   ico:"🎬", lbl:"ML Vídeo" },
 ];
 
 
@@ -2010,6 +2037,14 @@ function MeuVideo({ links, addVideo, queue, setQueue, goTo }) {
         <button onClick={()=>setTab("link")} style={{ flex:1,padding:"10px 0",borderRadius:11,border:"none",background:tab==="link"?`linear-gradient(135deg,${C.blue},${C.purple})`:"transparent",color:tab==="link"?"#fff":C.t3,fontWeight:700,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6 }}>
           🔗 Colar Link do Vídeo
         </button>
+
+        {/* 🔐 Admin Panel */}
+        <div style={{ display:"flex", justifyContent:"center", marginTop:16 }}>
+          <button onClick={()=>{ const pw = prompt("🔐 Senha admin:"); if (pw === "toor") { onShowAdmin && onShowAdmin(); } else if (pw !== null) { alert("❌ Senha incorreta"); } }}
+            style={{ background:"transparent", border:`1px solid ${C.b1}`, borderRadius:10, padding:"8px 20px", color:C.t3, fontSize:11, cursor:"pointer", display:"flex", alignItems:"center", gap:6 }}>
+            🔐 <span>Admin Panel</span>
+          </button>
+        </div>
         <button onClick={()=>setTab("upload")} style={{ flex:1,padding:"10px 0",borderRadius:11,border:"none",background:tab==="upload"?`linear-gradient(135deg,${C.blue},${C.purple})`:"transparent",color:tab==="upload"?"#fff":C.t3,fontWeight:700,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6 }}>
           📤 Fazer Upload
         </button>
@@ -4421,7 +4456,7 @@ function TelegramMonitor({ telegramBot, addLink, queue, setQueue }) {
 // ══════════════════════════════════════════════════════
 // HUB OFERTAS — Espião + Monitor TG
 // ══════════════════════════════════════════════════════
-function HubOfertas({ addLink, goTo, telegramBot, queue, setQueue }) {
+function HubOfertas({ addLink, goTo, telegramBot, queue, setQueue, links, updateLink, delLink, stats, updStats, setSelProd, mlTokens, setMlTokens }) {
   const [sub, setSub] = useState("espia");
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
@@ -4437,6 +4472,7 @@ function HubOfertas({ addLink, goTo, telegramBot, queue, setQueue }) {
         ))}
       </div>
       {sub==="espia"   && <EspiaoOfertas addLink={addLink} goTo={goTo} />}
+      {sub==="links"   && <Links links={links||[]} addLink={addLink} updateLink={updateLink} delLink={delLink} stats={stats||{}} updStats={updStats} goTo={goTo} setSelProd={setSelProd} mlTokens={mlTokens} setMlTokens={setMlTokens} />}
       {sub==="monitor" && <TelegramMonitor telegramBot={telegramBot||{}} addLink={addLink} queue={queue||[]} setQueue={setQueue} />}
     </div>
   );
@@ -6097,7 +6133,7 @@ export default function App() {
   },[]);
 
   const up = useCallback(p=>setSt(s=>({...s,...p})),[]);
-  const login = u => up({user:u});
+  const login = u => { up({user:u}); if (u?.isAdmin) setTimeout(()=>setShowAdmin(true), 300); };
   const logout = () => { try{localStorage.removeItem(KEY);}catch{} setSt(EMPTY); };
   const goTo = t => setTab(t);
 
@@ -6129,19 +6165,15 @@ export default function App() {
   const render = () => {
     switch(tab) {
         case "Inicio":  return <Dashboard stats={st.stats} links={st.links} videos={st.videos||[]} scripts={st.scripts||[]} goTo={goTo} updStats={updStats} addLink={addLink} clickHistory={st.clickHistory||[]} />;
-        case "Ofertas": return <HubOfertas addLink={addLink} goTo={goTo} telegramBot={st.telegramBot||{}} queue={st.queue||[]} setQueue={q=>up({queue:q})} />;
-        case "Links":   return <Links links={st.links} addLink={addLink} updateLink={updateLink} delLink={delLink} stats={st.stats} updStats={updStats} goTo={goTo} setSelProd={setSelProd} mlTokens={mlTokens} setMlTokens={setMlTokens} />;
+        case "Ofertas": return <HubOfertas addLink={addLink} goTo={goTo} telegramBot={st.telegramBot||{}} queue={st.queue||[]} setQueue={q=>up({queue:q})} links={st.links} updateLink={updateLink} delLink={delLink} stats={st.stats} updStats={updStats} setSelProd={setSelProd} mlTokens={mlTokens} setMlTokens={setMlTokens} />;
         case "Criar":   return <HubCriar links={st.links} videos={st.videos||[]} scripts={st.scripts||[]} queue={st.queue||[]} setQueue={q=>up({queue:q})} addScript={addScript} delScript={delScript} selProd={selProd} setSelProd={setSelProd} addVideo={addVideo} delVideo={delVideo} goTo={goTo} />;
         case "Postar":  return <HubPostar queue={st.queue||[]} setQueue={q=>up({queue:q})} postLogs={st.postLogs||[]} setPostLogs={l=>up({postLogs:l})} links={st.links} scripts={st.scripts||[]} videos={st.videos||[]} telegramBot={st.telegramBot||{token:"",chatId:"",active:false}} setTelegramBot={b=>up({telegramBot:b})} goTo={goTo} />;
-        case "IA":      return <AIManager stats={st.stats} links={st.links} videos={st.videos||[]} scripts={st.scripts||[]} queue={st.queue||[]} connectedAccounts={st.connectedAccounts||{}} />;
-        case "Perfil":  return <HubPerfil links={st.links} user={st.user} accs={st.connectedAccounts||{}} setAccs={a=>up({connectedAccounts:a})} bestTimes={st.bestTimes||{}} setBestTimes={t=>up({bestTimes:t})} />;
-        case "MLVideo":  return <MercadoLivreVideo mlTokens={mlTokens} setMlTokens={setMlTokens} videos={st.videos||[]} links={st.links||[]} />;
-        case "Config":  return <Config settings={st.settings} setSetts={s=>up({settings:s})} customStores={st.customStores||[]} setCustomStores={cs=>up({customStores:cs})} connectedStores={st.connectedStores||{}} setConnectedStores={f=>up({connectedStores:typeof f==="function"?f(st.connectedStores):f})} mlTokens={mlTokens} setMlTokens={setMlTokens} storeConfigs={st.storeConfigs||{}} setStoreConfigs={cfg=>up({storeConfigs:cfg})} telegramBot={st.telegramBot||{}} setTelegramBot={b=>up({telegramBot:b})} onLogout={logout} onShowAdmin={()=>setShowAdmin(true)} />;
+        case "Config":  return <Config settings={st.settings} setSetts={s=>up({settings:s})} customStores={st.customStores||[]} setCustomStores={cs=>up({customStores:cs})} connectedStores={st.connectedStores||{}} setConnectedStores={f=>up({connectedStores:typeof f==="function"?f(st.connectedStores):f})} mlTokens={mlTokens} setMlTokens={setMlTokens} storeConfigs={st.storeConfigs||{}} setStoreConfigs={cfg=>up({storeConfigs:cfg})} telegramBot={st.telegramBot||{}} setTelegramBot={b=>up({telegramBot:b})} onLogout={logout} onShowAdmin={()=>setShowAdmin(true)} st={st} up={up} selProd={selProd} setSelProd={setSelProd} addVideo={addVideo} delVideo={delVideo} />;
         default: return null;    }
   };
 
   return (
-    <div style={{ background:C.bg, minHeight:"100vh", maxWidth:430, margin:"0 auto", fontFamily:"'Outfit',sans-serif" }}>
+    <div className="app-root" style={{ background:C.bg, minHeight:"100vh", maxWidth:480, width:"100%", margin:"0 auto", fontFamily:"'Outfit',sans-serif", position:"relative" }}>
       <Sty/>
       <div style={{ position:"fixed", top:-60, left:"50%", transform:"translateX(-50%)", width:380, height:380, borderRadius:"50%", background:`radial-gradient(circle,${C.neon}06,transparent 70%)`, pointerEvents:"none", zIndex:0 }}/>
       <div style={{ position:"sticky", top:0, zIndex:50, background:C.bg+"ee", backdropFilter:"blur(14px)", borderBottom:`1px solid ${C.b1}`, padding:"14px 20px 12px" }}>
@@ -6169,14 +6201,7 @@ export default function App() {
           </div>
         </div>
       </div>
-      <div style={{ display:"flex", gap:6, padding:"12px 16px 0", overflowX:"auto", scrollbarWidth:"none" }}>
-        {TABS.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} style={{ flexShrink:0, display:"flex", alignItems:"center", gap:5, background:tab===t.id?`linear-gradient(135deg,${C.neon}18,${C.blue}12)`:"transparent", border:`1px solid ${tab===t.id?C.neon+"50":C.b1}`, borderRadius:99, padding:"7px 14px", color:tab===t.id?C.neon:C.t3, fontWeight:700, fontSize:12, cursor:"pointer", transition:"all .2s" }}>
-            <span style={{ fontSize:14 }}>{t.ico}</span><span>{t.lbl}</span>
-          </button>
-        ))}
-      </div>
-      <div style={{ padding:"16px 16px 100px", position:"relative", zIndex:1 }} key={tab}>
+      <div style={{ padding:"16px 16px 100px", position:"relative", zIndex:1, background:C.bg, minHeight:"calc(100vh - 120px)" }} key={tab}>
         {render()}
       </div>
       <PWAInstallBanner />
