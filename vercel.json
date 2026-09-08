@@ -1,0 +1,7 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "build",
+  "framework": "create-react-app",
+  "env": { "DISABLE_ESLINT_PLUGIN": "true" },
+  "crons": [{ "path": "/api/auto-post", "schedule": "0 9 * * *" }]
+}
